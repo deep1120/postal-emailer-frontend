@@ -4,9 +4,37 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Postal Emailer</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 40px; }
+      .card { max-width: 420px; padding: 20px; border: 1px solid #ddd; border-radius: 12px; }
+      label { display:block; margin-top: 12px; font-weight: 600; }
+      input { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ccc; border-radius: 10px; }
+      button { margin-top: 14px; padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; }
+      .row { display:flex; gap:10px; align-items:center; }
+      .status { margin-top: 14px; padding: 10px; border-radius: 10px; background: #f6f6f6; white-space: pre-wrap; }
+      .small { color:#555; font-size: 13px; }
+    </style>
   </head>
   <body>
     <h1>Postal Emailer</h1>
-    <p>Frontend scaffold is live.</p>
+
+    <div class="card">
+      <div class="small">Backend: <span id="backendUrl"></span></div>
+
+      <label>Username</label>
+      <input id="username" autocomplete="username" />
+
+      <label>Password</label>
+      <input id="password" type="password" autocomplete="current-password" />
+
+      <div class="row">
+        <button id="loginBtn">Log in</button>
+        <button id="meBtn" type="button">Check /api/me</button>
+      </div>
+
+      <div class="status" id="status">Not logged in</div>
+    </div>
+
+    <script src="./app.js"></script>
   </body>
 </html>
