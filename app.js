@@ -6,21 +6,36 @@ function setStatus(obj) {
   el("status").textContent = JSON.stringify(obj, null, 2);
 }
 
+function getToken() {
+  return localStorage.getItem("postal_token") || "";
+}
+
+function setToken(token) {
+  if (token) localStorage.setItem("postal_token", token);
+}
+
 async function api(path, opts = {}) {
   const url = `${BACKEND_URL}${path}`;
+
+  const headers = {
+    "content-type": "application/json",
+    ...(opts.headers || {}),
+  };
+
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(url, {
     ...opts,
+    // keep include for compatibility, but token auth is primary
     credentials: "include",
-    headers: {
-      "content-type": "application/json",
-      ...(opts.headers || {})
-    }
+    headers,
   });
 
   const ct = res.headers.get("content-type") || "";
   let body;
-  if (ct.includes("application/json")) body = await res.json();
-  else body = await res.text();
+  if (ct.includes("application/json")) body = await res.json().catch(() => null);
+  else body = await res.text().catch(() => "");
 
   return { ok: res.ok, status: res.status, body };
 }
@@ -53,7 +68,6 @@ function renderApp(customers, origins) {
   `;
   const tbody = table.querySelector("tbody");
 
-  // Keep draft selections in memory
   const draft = new Map(); // customerId -> {type, origin}
 
   for (const c of customers) {
@@ -99,14 +113,12 @@ function renderApp(customers, origins) {
     tdOrigin.appendChild(selOrigin);
     tr.appendChild(tdOrigin);
 
-    // Default
     draft.set(c.customerId, { type: "none", origin: "" });
 
     selType.addEventListener("change", () => {
       const cur = draft.get(c.customerId) || { type: "none", origin: "" };
       cur.type = selType.value;
 
-      // origin only required for package
       if (cur.type === "package") {
         selOrigin.disabled = false;
       } else {
@@ -156,7 +168,6 @@ function renderApp(customers, origins) {
   });
 
   sendBtn.addEventListener("click", async () => {
-    // Build payload of only rows that have mail/package selected
     const items = [];
     for (const c of customers) {
       const d = draft.get(c.customerId) || { type: "none", origin: "" };
@@ -168,7 +179,7 @@ function renderApp(customers, origins) {
         name: c.name,
         email: c.email,
         type: d.type,
-        origin: d.origin || ""
+        origin: d.origin || "",
       });
     }
 
@@ -179,49 +190,17 @@ function renderApp(customers, origins) {
 
     const res = await api("/api/send-bulk", {
       method: "POST",
-      body: JSON.stringify({ items })
+      body: JSON.stringify({ items }),
     });
 
     setStatus(res);
   });
-}
-
-async function boot() {
-  el("backendUrl").textContent = BACKEND_URL;
-
-  // Wire login button
-  el("loginBtn").addEventListener("click", async () => {
-    const username = el("username").value.trim();
-    const password = el("password").value;
-
-    const res = await api("/api/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password })
-    });
-    setStatus(res);
-
-    if (res.ok) {
-      await loadAfterLogin();
-    }
-  });
-
-  el("meBtn").addEventListener("click", async () => {
-    const me = await api("/api/me", { method: "GET" });
-    setStatus(me);
-  });
-
-  // Auto-check session
-  const me = await api("/api/me", { method: "GET" });
-  setStatus(me);
-  if (me.ok && me.body && me.body.authenticated) {
-    await loadAfterLogin();
-  }
 }
 
 async function loadAfterLogin() {
   const [cust, org] = await Promise.all([
     api("/api/customers", { method: "GET" }),
-    api("/api/origins", { method: "GET" })
+    api("/api/origins", { method: "GET" }),
   ]);
 
   if (!cust.ok) {
@@ -235,6 +214,44 @@ async function loadAfterLogin() {
 
   renderApp(cust.body.customers || [], org.body.origins || []);
   setStatus({ ok: true, message: "Loaded customers + origins", customers: cust.body.count });
+}
+
+async function boot() {
+  el("backendUrl").textContent = BACKEND_URL;
+
+  el("loginBtn").addEventListener("click", async () => {
+    const username = el("username").value.trim();
+    const password = el("password").value;
+
+    const res = await api("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+
+    // save token if backend returns it
+    if (res.ok && res.body && res.body.token) setToken(res.body.token);
+
+    setStatus(res);
+
+    if (res.ok) await loadAfterLogin();
+  });
+
+  el("meBtn").addEventListener("click", async () => {
+    const me = await api("/api/me", { method: "GET" });
+    setStatus(me);
+  });
+
+  // On refresh: if token already stored, try loading customers
+  const token = getToken();
+  if (token) {
+    const me = await api("/api/me", { method: "GET" });
+    setStatus(me);
+    if (me.ok && me.body && me.body.authenticated) await loadAfterLogin();
+  } else {
+    // no token: just show current /api/me state (likely false)
+    const me = await api("/api/me", { method: "GET" });
+    setStatus(me);
+  }
 }
 
 boot().catch((e) => setStatus({ ok: false, error: e?.message || String(e) }));
