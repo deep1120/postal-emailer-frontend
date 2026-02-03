@@ -6,6 +6,21 @@ function setStatus(obj) {
   el("status").textContent = JSON.stringify(obj, null, 2);
 }
 
+
+
+function renderLoggedOut() {
+  const root = el("app");
+  if (!root) return;
+  root.innerHTML = "";
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="small">Backend: ${BACKEND_URL}</div>
+    <h3 style="margin:10px 0 6px;">Please log in</h3>
+    <div class="small">Enter your username/password, then click Login.</div>
+  `;
+  root.appendChild(card);
+}
 function getToken() {
   return localStorage.getItem("postal_token") || "";
 }
@@ -241,16 +256,15 @@ async function boot() {
     setStatus(me);
   });
 
-  // On refresh: if token already stored, try loading customers
+  // On refresh: only load customers if authenticated
   const token = getToken();
-  if (token) {
-    const me = await api("/api/me", { method: "GET" });
-    setStatus(me);
-    if (me.ok && me.body && me.body.authenticated) await loadAfterLogin();
+  const me = await api("/api/me", { method: "GET" });
+  setStatus(me);
+
+  if (token && me.ok && me.body && me.body.authenticated) {
+    await loadAfterLogin();
   } else {
-    // no token: just show current /api/me state (likely false)
-    const me = await api("/api/me", { method: "GET" });
-    setStatus(me);
+    renderLoggedOut();
   }
 }
 
