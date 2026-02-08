@@ -243,32 +243,38 @@ pre{
   color: #0b1220;
 }
 
-/* --- Responsive table: no horizontal scroll --- */
+/* ===== Logged-in layout: full width ===== */
+.fullWidth { width: 100%; }
+
+/* ===== Table: fill available space on desktop ===== */
 .tableWrap{
-  overflow-x: hidden;     /* stop horizontal scrolling */
+  width: 100%;
+  overflow-x: auto; /* only scroll if truly needed */
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
 }
 
 .tbl{
-  table-layout: fixed;    /* forces columns to fit container */
   width: 100%;
+  table-layout: auto; /* expand naturally */
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
-.tbl th, .tbl td{
-  word-break: break-word; /* allow long emails to wrap */
-  white-space: normal;
+/* Optional: nicer column sizing on laptop */
+.tbl th:nth-child(1), .tbl td:nth-child(1) { width: 90px; }   /* Box# */
+.tbl th:nth-child(2), .tbl td:nth-child(2) { width: 240px; }  /* Name */
+.tbl th:nth-child(3), .tbl td:nth-child(3) { width: 420px; }  /* Email */
+.tbl th:nth-child(4), .tbl td:nth-child(4) { width: 180px; }  /* Type */
+.tbl th:nth-child(5), .tbl td:nth-child(5) { width: 260px; }  /* Origin */
+
+.tbl td:nth-child(2),
+.tbl td:nth-child(3){
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 
-/* ===== Desktop table layout fix ===== */
-.container { max-width: 1400px; width: 100%; }
-.card { width: 100%; }
-.tbl { width: 100%; table-layout: fixed; }
-.tbl th, .tbl td { padding: 12px 14px; vertical-align: middle; }
-.tbl th:nth-child(1), .tbl td:nth-child(1) { width: 90px; }
-.tbl th:nth-child(2), .tbl td:nth-child(2) { width: 220px; }
-.tbl th:nth-child(3), .tbl td:nth-child(3) { width: 320px; }
-.tbl th:nth-child(4), .tbl td:nth-child(4) { width: 160px; }
-.tbl th:nth-child(5), .tbl td:nth-child(5) { width: 240px; }
-.tbl td:nth-child(2), .tbl td:nth-child(3) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tbl select { width: 100%; }
 
