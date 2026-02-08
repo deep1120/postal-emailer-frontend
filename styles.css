@@ -162,8 +162,7 @@ input:focus, select:focus{
   width:100%;
   border-collapse:separate;
   border-spacing:0;
-  min-width: 760px;
-}
+  }
 .tbl thead th{
   text-align:left;
   font-size:12px;
@@ -243,3 +242,19 @@ pre{
   word-break:break-word;
   color: #0b1220;
 }
+
+/* --- Responsive table: no horizontal scroll --- */
+.tableWrap{
+  overflow-x: hidden;     /* stop horizontal scrolling */
+}
+
+.tbl{
+  table-layout: fixed;    /* forces columns to fit container */
+  width: 100%;
+}
+
+.tbl th, .tbl td{
+  word-break: break-word; /* allow long emails to wrap */
+  white-space: normal;
+}
+
