@@ -216,11 +216,11 @@ async function renderLoggedIn(user) {
       <table class="tbl">
         <thead>
           <tr>
-            <th style="width:90px;">Box#</th>
+            <th>Box#</th>
             <th>Name</th>
             <th>Email</th>
-            <th style="width:140px;">Type</th>
-            <th style="width:200px;">Origin (if package)</th>
+            <th>Type</th>
+            <th>Origin (if package)</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
