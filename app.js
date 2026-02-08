@@ -210,7 +210,7 @@ async function renderLoggedIn(user) {
       </div>
     </div>
 
-    <div class="note">Choose MAIL or PACKAGE for each row. PACKAGE requires an origin.</div>
+    <div class="note">Select Mail or one/more Package Services per row. Choosing one disables the other.</div>
 
     <div class="tableWrap">
       <table class="tbl">
@@ -219,8 +219,8 @@ async function renderLoggedIn(user) {
             <th>Box#</th>
             <th>Name</th>
             <th>Email</th>
-            <th>Type</th>
-            <th>Origin (if package)</th>
+            <th>Mail</th>
+            <th>Package Services</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -262,28 +262,20 @@ async function renderLoggedIn(user) {
 async function loadAndRenderTable() {
   showToast("warn", "Loading customers…");
 
-  const [cust, org] = await Promise.all([
-    api("/api/customers", { method: "GET" }),
-    api("/api/origins", { method: "GET" }),
-  ]);
+  const cust = await api("/api/customers", { method: "GET" });
 
-  setDebug({ customers: cust, origins: org });
+  setDebug({ customers: cust });
 
   if (!cust.ok) {
     showToast("err", "Failed to load customers", safeJson(cust.body));
     return;
   }
-  if (!org.ok) {
-    showToast("err", "Failed to load origins", safeJson(org.body));
-    return;
-  }
-
   const customers = cust.body?.customers || [];
-  const origins = org.body?.origins || [];
   const tbody = el("tbody");
 
+  const serviceOptions = ["Amazon", "DHL", "FedEx", "UPS", "USPS"];
   // draft selections
-  const draft = new Map(); // customerId -> { type, origin }
+  const draft = new Map(); // customerId -> { mail: boolean, services: string[] }
 
   tbody.innerHTML = "";
 
@@ -302,56 +294,75 @@ async function loadAndRenderTable() {
     tdEmail.textContent = c.email || "";
     tr.appendChild(tdEmail);
 
-    const tdType = document.createElement("td");
-    const selType = document.createElement("select");
-    for (const t of ["none", "mail", "package"]) {
-      const o = document.createElement("option");
-      o.value = t;
-      o.textContent = t === "none" ? "—" : t.toUpperCase();
-      selType.appendChild(o);
+    const tdMail = document.createElement("td");
+    const mailToggle = document.createElement("input");
+    mailToggle.type = "checkbox";
+    mailToggle.className = "chk";
+    tdMail.appendChild(mailToggle);
+    tr.appendChild(tdMail);
+
+    const tdServices = document.createElement("td");
+    const servicesWrap = document.createElement("div");
+    servicesWrap.className = "servicesWrap";
+    const serviceInputs = new Map();
+
+    for (const service of serviceOptions) {
+      const label = document.createElement("label");
+      label.className = "chkLabel";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.className = "chk";
+      input.value = service;
+      serviceInputs.set(service, input);
+      label.appendChild(input);
+      const text = document.createElement("span");
+      text.textContent = service;
+      label.appendChild(text);
+      servicesWrap.appendChild(label);
     }
-    tdType.appendChild(selType);
-    tr.appendChild(tdType);
+    tdServices.appendChild(servicesWrap);
+    tr.appendChild(tdServices);
 
-    const tdOrigin = document.createElement("td");
-    const selOrigin = document.createElement("select");
-    const empty = document.createElement("option");
-    empty.value = "";
-    empty.textContent = "—";
-    selOrigin.appendChild(empty);
+    draft.set(c.customerId, { mail: false, services: [] });
 
-    for (const org of origins) {
-      const o = document.createElement("option");
-      o.value = org;
-      o.textContent = org;
-      selOrigin.appendChild(o);
-    }
-    selOrigin.disabled = true;
-    tdOrigin.appendChild(selOrigin);
-    tr.appendChild(tdOrigin);
+    const syncRowState = () => {
+      const cur = draft.get(c.customerId) || { mail: false, services: [] };
+      const hasServices = cur.services.length > 0;
+      mailToggle.checked = cur.mail;
+      mailToggle.disabled = hasServices;
+      for (const [service, input] of serviceInputs.entries()) {
+        input.checked = cur.services.includes(service);
+        input.disabled = cur.mail;
+      }
+    };
 
-    // Default
-    draft.set(c.customerId, { type: "none", origin: "" });
-
-    selType.addEventListener("change", () => {
-      const cur = draft.get(c.customerId) || { type: "none", origin: "" };
-      cur.type = selType.value;
-
-      if (cur.type === "package") {
-        selOrigin.disabled = false;
-      } else {
-        selOrigin.value = "";
-        selOrigin.disabled = true;
-        cur.origin = "";
+    mailToggle.addEventListener("change", () => {
+      const cur = draft.get(c.customerId) || { mail: false, services: [] };
+      cur.mail = mailToggle.checked;
+      if (cur.mail) {
+        cur.services = [];
       }
       draft.set(c.customerId, cur);
+      syncRowState();
     });
 
-    selOrigin.addEventListener("change", () => {
-      const cur = draft.get(c.customerId) || { type: "none", origin: "" };
-      cur.origin = selOrigin.value;
-      draft.set(c.customerId, cur);
-    });
+    for (const [service, input] of serviceInputs.entries()) {
+      input.addEventListener("change", () => {
+        const cur = draft.get(c.customerId) || { mail: false, services: [] };
+        if (input.checked) {
+          if (!cur.services.includes(service)) cur.services.push(service);
+        } else {
+          cur.services = cur.services.filter((s) => s !== service);
+        }
+        if (cur.services.length > 0) {
+          cur.mail = false;
+        }
+        draft.set(c.customerId, cur);
+        syncRowState();
+      });
+    }
+
+    syncRowState();
 
     tbody.appendChild(tr);
   }
@@ -359,27 +370,23 @@ async function loadAndRenderTable() {
   el("sendBtn").onclick = async () => {
     const items = [];
     for (const c of customers) {
-      const d = draft.get(c.customerId) || { type: "none", origin: "" };
-      if (d.type === "none") continue;
-
-      // client-side guard
-      if (d.type === "package" && !d.origin) {
-        showToast("warn", `Missing origin for package`, `box=${c.boxNumber || ""}`);
-        return;
-      }
+      const d = draft.get(c.customerId) || { mail: false, services: [] };
+      if (!d.mail && d.services.length === 0) continue;
 
       items.push({
         customerId: c.customerId,
         boxNumber: c.boxNumber,
         name: c.name,
         email: c.email,
-        type: d.type,
-        origin: d.origin || "",
+        deliveryType: d.mail ? "mail" : "package",
+        services: d.services,
+        type: d.mail ? "mail" : "package",
+        origin: "",
       });
     }
 
     if (items.length === 0) {
-      showToast("warn", "Nothing selected", "Choose MAIL or PACKAGE for at least one row.");
+      showToast("warn", "Nothing selected", "Choose Mail or Package Services for at least one row.");
       return;
     }
 

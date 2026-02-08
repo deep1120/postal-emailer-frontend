@@ -99,7 +99,7 @@ body{
   margin-bottom:6px;
 }
 
-input, select{
+input:not([type="checkbox"]), select{
   width:100%;
   padding:10px 12px;
   border:1px solid var(--border);
@@ -108,7 +108,7 @@ input, select{
   outline:none;
   background:#fff;
 }
-input:focus, select:focus{
+input:not([type="checkbox"]):focus, select:focus{
   border-color: rgba(37,99,235,.5);
   box-shadow: 0 0 0 3px rgba(37,99,235,.12);
 }
@@ -156,14 +156,14 @@ input:focus, select:focus{
 .tableWrap{
   margin-top: 14px;
   width:100%;
-  overflow-x:auto;
+  overflow-x:visible;
   border:1px solid var(--border);
   border-radius:14px;
 }
 
 .tbl{
   width:100%;
-  table-layout:fixed;
+  table-layout:auto;
   border-collapse:separate;
   border-spacing:0;
   }
@@ -186,22 +186,34 @@ input:focus, select:focus{
   background:#fcfdff;
 }
 
-.tbl th:nth-child(1),
-.tbl td:nth-child(1){ width:90px; }
-.tbl th:nth-child(2),
-.tbl td:nth-child(2){ width:220px; }
-.tbl th:nth-child(3),
-.tbl td:nth-child(3){ width:360px; }
-.tbl th:nth-child(4),
-.tbl td:nth-child(4){ width:160px; }
-.tbl th:nth-child(5),
-.tbl td:nth-child(5){ width:260px; }
+.tbl td,
+.tbl th{
+  word-break:break-word;
+}
 
 .tbl td:nth-child(2),
 .tbl td:nth-child(3){
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  white-space:normal;
+}
+
+.servicesWrap{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 12px;
+}
+
+.chkLabel{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  color:var(--text);
+}
+
+.chk{
+  appearance:auto;
+  width:16px;
+  height:16px;
 }
 
 .badge{
@@ -264,4 +276,3 @@ pre{
   word-break:break-word;
   color: #0b1220;
 }
-
