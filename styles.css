@@ -79,6 +79,8 @@ body{
   border-radius:16px;
   box-shadow:var(--shadow);
   padding:18px;
+  width:100%;
+  max-width:none;
 }
 
 .grid{
@@ -153,13 +155,15 @@ input:focus, select:focus{
 
 .tableWrap{
   margin-top: 14px;
-  overflow:auto;
+  width:100%;
+  overflow-x:auto;
   border:1px solid var(--border);
   border-radius:14px;
 }
 
 .tbl{
   width:100%;
+  table-layout:fixed;
   border-collapse:separate;
   border-spacing:0;
   }
@@ -180,6 +184,24 @@ input:focus, select:focus{
 }
 .tbl tbody tr:nth-child(even){
   background:#fcfdff;
+}
+
+.tbl th:nth-child(1),
+.tbl td:nth-child(1){ width:90px; }
+.tbl th:nth-child(2),
+.tbl td:nth-child(2){ width:220px; }
+.tbl th:nth-child(3),
+.tbl td:nth-child(3){ width:360px; }
+.tbl th:nth-child(4),
+.tbl td:nth-child(4){ width:160px; }
+.tbl th:nth-child(5),
+.tbl td:nth-child(5){ width:260px; }
+
+.tbl td:nth-child(2),
+.tbl td:nth-child(3){
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
 .badge{
@@ -242,39 +264,4 @@ pre{
   word-break:break-word;
   color: #0b1220;
 }
-
-/* ===== Logged-in layout: full width ===== */
-.fullWidth { width: 100%; }
-
-/* ===== Table: fill available space on desktop ===== */
-.tableWrap{
-  width: 100%;
-  overflow-x: auto; /* only scroll if truly needed */
-  margin-top: 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-}
-
-.tbl{
-  width: 100%;
-  table-layout: auto; /* expand naturally */
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-/* Optional: nicer column sizing on laptop */
-.tbl th:nth-child(1), .tbl td:nth-child(1) { width: 90px; }   /* Box# */
-.tbl th:nth-child(2), .tbl td:nth-child(2) { width: 240px; }  /* Name */
-.tbl th:nth-child(3), .tbl td:nth-child(3) { width: 420px; }  /* Email */
-.tbl th:nth-child(4), .tbl td:nth-child(4) { width: 180px; }  /* Type */
-.tbl th:nth-child(5), .tbl td:nth-child(5) { width: 260px; }  /* Origin */
-
-.tbl td:nth-child(2),
-.tbl td:nth-child(3){
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-
 
