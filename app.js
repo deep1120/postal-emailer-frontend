@@ -1,37 +1,100 @@
 const BACKEND_URL = "https://postal-emailer-backend.postal-mailer.workers.dev";
 
+const TOKEN_KEY = "postal_token";
+
 const el = (id) => document.getElementById(id);
 
-function setStatus(obj) {
-  el("status").textContent = JSON.stringify(obj, null, 2);
-}
-
-
-
-function renderLoggedOut() {
-  const root = el("app");
-  if (!root) return;
-  root.innerHTML = "";
-  const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `
-    <div class="small">Backend: ${BACKEND_URL}</div>
-    <h3 style="margin:10px 0 6px;">Please log in</h3>
-    <div class="small">Enter your username/password, then click Login.</div>
-  `;
-  root.appendChild(card);
-}
 function getToken() {
-  return localStorage.getItem("postal_token") || "";
+  try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; }
+}
+function setToken(t) {
+  try { localStorage.setItem(TOKEN_KEY, t); } catch {}
+}
+function clearToken() {
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
 }
 
-function setToken(token) {
-  if (token) localStorage.setItem("postal_token", token);
+function safeJson(obj) {
+  try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
+}
+
+let DEBUG = false;
+
+function mountShell() {
+  const root = document.body;
+  root.innerHTML = `
+    <div class="container">
+      <div class="header">
+        <div class="brand">
+          <h1>Postal Emailer</h1>
+          <div class="sub">Backend: <span id="backendUrl"></span></div>
+        </div>
+        <div class="pill" id="authPill">
+          <span class="dot" id="authDot"></span>
+          <span id="authText">Checking session…</span>
+        </div>
+      </div>
+
+      <div class="card" id="screen"></div>
+
+      <div class="toast hidden" id="toast">
+        <div>
+          <div class="msg" id="toastMsg"></div>
+          <div class="meta" id="toastMeta"></div>
+        </div>
+        <button class="btn ghost" id="toastHideBtn" type="button">Dismiss</button>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn ghost" id="debugToggleBtn" type="button">Show debug</button>
+      </div>
+
+      <div class="debug hidden" id="debugBox">
+        <pre id="debugPre"></pre>
+      </div>
+    </div>
+  `;
+
+  el("backendUrl").textContent = BACKEND_URL;
+
+  el("toastHideBtn").addEventListener("click", () => hideToast());
+  el("debugToggleBtn").addEventListener("click", () => {
+    DEBUG = !DEBUG;
+    el("debugBox").classList.toggle("hidden", !DEBUG);
+    el("debugToggleBtn").textContent = DEBUG ? "Hide debug" : "Show debug";
+  });
+}
+
+function showToast(kind, message, meta = "") {
+  const toast = el("toast");
+  toast.classList.remove("hidden", "ok", "err", "warn");
+  if (kind === "ok") toast.classList.add("ok");
+  else if (kind === "warn") toast.classList.add("warn");
+  else toast.classList.add("err");
+
+  el("toastMsg").textContent = message || "";
+  el("toastMeta").textContent = meta || "";
+}
+function hideToast() {
+  el("toast").classList.add("hidden");
+}
+
+function setAuthPill(authenticated, label) {
+  const dot = el("authDot");
+  const txt = el("authText");
+  dot.classList.remove("ok", "warn");
+  if (authenticated === true) dot.classList.add("ok");
+  else if (authenticated === false) dot.classList.add("warn");
+  txt.textContent = label || "";
+}
+
+function setDebug(obj) {
+  if (!DEBUG) return;
+  el("debugPre").textContent = safeJson(obj);
 }
 
 async function api(path, opts = {}) {
   const url = `${BACKEND_URL}${path}`;
-
   const headers = {
     "content-type": "application/json",
     ...(opts.headers || {}),
@@ -42,7 +105,6 @@ async function api(path, opts = {}) {
 
   const res = await fetch(url, {
     ...opts,
-    // keep include for compatibility, but token auth is primary
     credentials: "include",
     headers,
   });
@@ -55,35 +117,175 @@ async function api(path, opts = {}) {
   return { ok: res.ok, status: res.status, body };
 }
 
-function renderApp(customers, origins) {
-  const root = el("app");
-  root.innerHTML = "";
+// ---------- UI screens ----------
 
-  const card = document.createElement("div");
-  card.className = "card";
+function renderLoggedOut() {
+  const screen = el("screen");
+  screen.innerHTML = `
+    <div class="row" style="margin-bottom:10px;">
+      <div class="badge">
+        <span>Sign in to load customers</span>
+      </div>
+      <button class="btn ghost" id="checkMeBtn" type="button">Check session</button>
+    </div>
 
-  const top = document.createElement("div");
-  top.className = "small";
-  top.textContent = `Backend: ${BACKEND_URL} | Customers loaded: ${customers.length}`;
-  card.appendChild(top);
+    <div class="grid">
+      <div>
+        <div class="label">Username</div>
+        <input id="username" autocomplete="username" />
+      </div>
+      <div>
+        <div class="label">Password</div>
+        <input id="password" type="password" autocomplete="current-password" />
+      </div>
+    </div>
 
-  const table = document.createElement("table");
-  table.className = "tbl";
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th style="width:90px;">Box#</th>
-        <th>Name</th>
-        <th>Email</th>
-        <th style="width:130px;">Type</th>
-        <th style="width:160px;">Origin (if package)</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn primary" id="loginBtn" type="button">Log in</button>
+      <div class="note">Tip: you can use Incognito — token auth is stored locally.</div>
+    </div>
   `;
-  const tbody = table.querySelector("tbody");
 
-  const draft = new Map(); // customerId -> {type, origin}
+  el("checkMeBtn").addEventListener("click", async () => {
+    const me = await api("/api/me", { method: "GET" });
+    setDebug({ me });
+    if (me.ok && me.body?.authenticated) {
+      showToast("ok", "Already authenticated", `user=${me.body?.user?.sub || ""}`);
+      await renderLoggedIn(me.body.user);
+    } else {
+      showToast("warn", "Not authenticated", "Please log in.");
+    }
+  });
+
+  el("loginBtn").addEventListener("click", async () => {
+    const username = (el("username").value || "").trim();
+    const password = el("password").value || "";
+
+    if (!username || !password) {
+      showToast("warn", "Missing username or password");
+      return;
+    }
+
+    showToast("warn", "Signing in…");
+    const res = await api("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+
+    setDebug({ login: res });
+
+    if (!res.ok) {
+      showToast("err", "Login failed", safeJson(res.body));
+      setAuthPill(false, "Not signed in");
+      return;
+    }
+
+    if (res.body?.token) setToken(res.body.token);
+
+    const me = await api("/api/me", { method: "GET" });
+    setDebug({ login: res, me });
+
+    if (me.ok && me.body?.authenticated) {
+      showToast("ok", "Logged in", `user=${me.body?.user?.sub || ""}`);
+      await renderLoggedIn(me.body.user);
+    } else {
+      showToast("err", "Login succeeded but session check failed", safeJson(me.body));
+    }
+  });
+}
+
+async function renderLoggedIn(user) {
+  setAuthPill(true, `Signed in as ${user?.name || user?.sub || "user"}`);
+
+  const screen = el("screen");
+  screen.innerHTML = `
+    <div class="row" style="margin-bottom:12px;">
+      <div class="badge">
+        <span>✅ Logged in as <strong>${escapeHtml(user?.name || user?.sub || "")}</strong></span>
+        <span style="color:var(--muted)">(${escapeHtml(user?.sub || "")})</span>
+      </div>
+      <div class="row" style="gap:10px;">
+        <button class="btn ghost" id="refreshBtnTop" type="button">Refresh</button>
+        <button class="btn danger" id="logoutBtn" type="button">Log out</button>
+      </div>
+    </div>
+
+    <div class="note">Choose MAIL or PACKAGE for each row. PACKAGE requires an origin.</div>
+
+    <div class="tableWrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th style="width:90px;">Box#</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th style="width:140px;">Type</th>
+            <th style="width:200px;">Origin (if package)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <button class="btn primary" id="sendBtn" type="button">Send All (log only)</button>
+      <button class="btn" id="meBtn" type="button">Check /api/me</button>
+    </div>
+
+    <div class="note">This version does NOT send emails yet — it logs selections on the backend.</div>
+  `;
+
+  el("logoutBtn").addEventListener("click", async () => {
+    clearToken();
+    setAuthPill(false, "Signed out");
+    showToast("ok", "Logged out");
+    renderLoggedOut();
+  });
+
+  el("refreshBtnTop").addEventListener("click", async () => {
+    await loadAndRenderTable();
+  });
+
+  el("meBtn").addEventListener("click", async () => {
+    const me = await api("/api/me", { method: "GET" });
+    setDebug({ me });
+    if (me.ok && me.body?.authenticated) {
+      showToast("ok", "Session active", `exp=${me.body?.user?.exp || ""}`);
+    } else {
+      showToast("warn", "Session not active", safeJson(me.body));
+    }
+  });
+
+  await loadAndRenderTable();
+}
+
+async function loadAndRenderTable() {
+  showToast("warn", "Loading customers…");
+
+  const [cust, org] = await Promise.all([
+    api("/api/customers", { method: "GET" }),
+    api("/api/origins", { method: "GET" }),
+  ]);
+
+  setDebug({ customers: cust, origins: org });
+
+  if (!cust.ok) {
+    showToast("err", "Failed to load customers", safeJson(cust.body));
+    return;
+  }
+  if (!org.ok) {
+    showToast("err", "Failed to load origins", safeJson(org.body));
+    return;
+  }
+
+  const customers = cust.body?.customers || [];
+  const origins = org.body?.origins || [];
+  const tbody = el("tbody");
+
+  // draft selections
+  const draft = new Map(); // customerId -> { type, origin }
+
+  tbody.innerHTML = "";
 
   for (const c of customers) {
     const tr = document.createElement("tr");
@@ -128,6 +330,7 @@ function renderApp(customers, origins) {
     tdOrigin.appendChild(selOrigin);
     tr.appendChild(tdOrigin);
 
+    // Default
     draft.set(c.customerId, { type: "none", origin: "" });
 
     selType.addEventListener("change", () => {
@@ -153,40 +356,17 @@ function renderApp(customers, origins) {
     tbody.appendChild(tr);
   }
 
-  const btnRow = document.createElement("div");
-  btnRow.className = "row";
-
-  const sendBtn = document.createElement("button");
-  sendBtn.textContent = "Send All (log only)";
-  sendBtn.id = "sendAllBtn";
-
-  const refreshBtn = document.createElement("button");
-  refreshBtn.textContent = "Refresh /api/me";
-
-  btnRow.appendChild(sendBtn);
-  btnRow.appendChild(refreshBtn);
-
-  const note = document.createElement("div");
-  note.className = "small";
-  note.style.marginTop = "10px";
-  note.textContent = "This version does NOT send emails yet — it logs selections on the backend.";
-
-  card.appendChild(table);
-  card.appendChild(btnRow);
-  card.appendChild(note);
-
-  root.appendChild(card);
-
-  refreshBtn.addEventListener("click", async () => {
-    const me = await api("/api/me", { method: "GET" });
-    setStatus(me);
-  });
-
-  sendBtn.addEventListener("click", async () => {
+  el("sendBtn").onclick = async () => {
     const items = [];
     for (const c of customers) {
       const d = draft.get(c.customerId) || { type: "none", origin: "" };
       if (d.type === "none") continue;
+
+      // client-side guard
+      if (d.type === "package" && !d.origin) {
+        showToast("warn", `Missing origin for package`, `box=${c.boxNumber || ""}`);
+        return;
+      }
 
       items.push({
         customerId: c.customerId,
@@ -199,73 +379,62 @@ function renderApp(customers, origins) {
     }
 
     if (items.length === 0) {
-      setStatus({ ok: false, message: "Nothing selected. Choose MAIL or PACKAGE for at least one row." });
+      showToast("warn", "Nothing selected", "Choose MAIL or PACKAGE for at least one row.");
       return;
     }
 
+    showToast("warn", "Sending (log only)…", `count=${items.length}`);
     const res = await api("/api/send-bulk", {
       method: "POST",
       body: JSON.stringify({ items }),
     });
 
-    setStatus(res);
-  });
+    setDebug({ sendBulk: res });
+
+    if (!res.ok) {
+      showToast("err", "Send failed", safeJson(res.body));
+      return;
+    }
+
+    showToast("ok", "Logged selections", `count=${items.length}`);
+  };
+
+  showToast("ok", "Loaded customers", `count=${customers.length}`);
 }
 
-async function loadAfterLogin() {
-  const [cust, org] = await Promise.all([
-    api("/api/customers", { method: "GET" }),
-    api("/api/origins", { method: "GET" }),
-  ]);
+// ---------- helpers ----------
 
-  if (!cust.ok) {
-    setStatus({ ok: false, message: "Failed to load customers", details: cust });
-    return;
-  }
-  if (!org.ok) {
-    setStatus({ ok: false, message: "Failed to load origins", details: org });
-    return;
-  }
-
-  renderApp(cust.body.customers || [], org.body.origins || []);
-  setStatus({ ok: true, message: "Loaded customers + origins", customers: cust.body.count });
+function escapeHtml(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
+
+// ---------- boot ----------
 
 async function boot() {
-  el("backendUrl").textContent = BACKEND_URL;
+  mountShell();
 
-  el("loginBtn").addEventListener("click", async () => {
-    const username = el("username").value.trim();
-    const password = el("password").value;
+  setAuthPill(null, "Checking session…");
 
-    const res = await api("/api/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
-
-    // save token if backend returns it
-    if (res.ok && res.body && res.body.token) setToken(res.body.token);
-
-    setStatus(res);
-
-    if (res.ok) await loadAfterLogin();
-  });
-
-  el("meBtn").addEventListener("click", async () => {
-    const me = await api("/api/me", { method: "GET" });
-    setStatus(me);
-  });
-
-  // On refresh: only load customers if authenticated
+  // If token exists, validate session then show correct screen
   const token = getToken();
   const me = await api("/api/me", { method: "GET" });
-  setStatus(me);
+  setDebug({ me });
 
-  if (token && me.ok && me.body && me.body.authenticated) {
-    await loadAfterLogin();
+  if (token && me.ok && me.body?.authenticated) {
+    setAuthPill(true, `Signed in as ${me.body?.user?.name || me.body?.user?.sub || "user"}`);
+    await renderLoggedIn(me.body.user);
   } else {
+    setAuthPill(false, "Not signed in");
     renderLoggedOut();
   }
 }
 
-boot().catch((e) => setStatus({ ok: false, error: e?.message || String(e) }));
+boot().catch((e) => {
+  setAuthPill(false, "Error");
+  showToast("err", "App error", e?.message || String(e));
+});
